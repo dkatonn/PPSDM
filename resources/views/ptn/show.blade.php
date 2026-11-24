@@ -1,0 +1,25 @@
+@extends('layouts.app')
+@section('title',$ptn->name)
+@section('breadcrumb','Detail PTN')
+@section('content')
+@php($hasActivePartner = $ptn->kerjasamas->contains(fn ($item) => $item->status === 'aktif' && $item->hasSignedCopy() && $item->hasActiveUpt() && (! $item->ends_at || $item->ends_at->isToday() || $item->ends_at->isFuture()) && (! $item->starts_at || $item->starts_at->isToday() || $item->starts_at->isPast())))
+@php($futureAgreement = $ptn->kerjasamas->first(fn ($item) => $item->status === 'aktif' && $item->hasSignedCopy() && $item->hasActiveUpt() && $item->starts_at && $item->starts_at->isFuture() && (! $item->ends_at || $item->ends_at->isToday() || $item->ends_at->isFuture())))
+@php($waitingUpt = $ptn->kerjasamas->contains(fn ($item) => $item->status === 'aktif' && $item->hasSignedCopy() && ! $item->hasActiveUpt()))
+<div class="mb-4"><a href="{{ route('ptn.index') }}" class="small text-decoration-none"><i class="bi bi-arrow-left me-1"></i>Kembali</a></div>
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4"><div><div class="eyebrow">Detail perguruan tinggi</div><h1 class="page-title h3">{{ $ptn->name }}</h1><p class="muted">{{ $ptn->type }} · {{ $ptn->city }}{{ $ptn->city ? ', ' : '' }}{{ $ptn->province }}</p></div><div class="d-flex gap-2"><a class="btn btn-outline-primary" href="{{ route('ptn.edit',$ptn) }}">Edit PTN</a><a class="btn btn-primary" href="{{ route('kerjasama.create',['ptn_id'=>$ptn->id,'status'=>'aktif']) }}"><i class="bi bi-handshake me-1"></i>Tambah kerja sama</a></div></div>
+@if($hasActivePartner)<div class="alert alert-success"><i class="bi bi-check-circle me-1"></i>PTN ini memiliki kerja sama yang sudah ditandatangani dan diverifikasi aktif oleh UPT.</div>@elseif($futureAgreement)<div class="alert alert-info">UPT sudah memverifikasi kerja sama ini. Periode kerja samanya mulai {{ $futureAgreement->starts_at->format('d/m/Y') }}.</div>@elseif($waitingUpt)<div class="alert alert-warning"><strong>Menunggu verifikasi UPT.</strong> UPT yang ditugaskan perlu masuk ke portal UPT dan mengonfirmasi status kerja sama.</div>@else<div class="alert alert-warning"><strong>Belum aktif bekerja sama.</strong> Kerja sama baru dianggap aktif setelah tanggal TTD dan dokumen KA/PKS dicatat serta UPT yang ditugaskan memverifikasi statusnya.</div>@endif
+<div class="row g-3"><div class="col-lg-4"><div class="card p-4"><h2 class="section-title">Informasi PTN</h2><dl class="small mt-3"><dt>Alamat</dt><dd>{{ $ptn->address ?: '—' }}</dd><dt>Website</dt><dd>{{ $ptn->website ?: '—' }}</dd><dt>Email / Telepon</dt><dd>{{ $ptn->email ?: '—' }} · {{ $ptn->phone ?: '—' }}</dd><dt>Keterangan</dt><dd>{{ $ptn->notes ?: '—' }}</dd></dl></div></div>
+<div class="col-lg-8"><div class="card p-4"><h2 class="section-title">Riwayat kerja sama</h2>
+@forelse($ptn->kerjasamas as $item)
+    @php($isUptActive = $item->hasActiveUpt() && $item->hasSignedCopy() && $item->status === 'aktif')
+    <article class="border rounded-3 p-3 mt-3"><div class="d-flex justify-content-between gap-2 flex-wrap"><a href="{{ route('kerjasama.show',$item) }}" class="fw-semibold text-decoration-none">{{ $item->title }}</a><span class="badge {{ $isUptActive?'text-bg-success':($item->status==='draft'?'text-bg-warning':'text-bg-secondary') }}">{{ $isUptActive?'Aktif':($item->hasSignedCopy()?'Menunggu verifikasi UPT':'Belum aktif bekerja sama') }}</span></div>
+    <div class="small muted mt-1">{{ strtoupper($item->agreement_type) }} · {{ $item->document_number ?: 'Nomor belum dicatat' }}</div><div class="small mt-1">Masa berlaku: {{ $item->starts_at?->format('d/m/Y') ?: '—' }} s.d. {{ $item->ends_at?->format('d/m/Y') ?: '—' }}</div>
+    <div class="small fw-semibold mt-3">UPT dan ruang lingkup</div>
+    @forelse($item->uptAssignments as $assignment)
+        @php($verificationLabel = ['pending'=>'Menunggu','active'=>'Aktif','inactive'=>'Belum aktif','rejected'=>'Ditolak'][$assignment->verification_status] ?? 'Menunggu')
+        <div class="small border-top mt-2 pt-2"><span class="fw-semibold">{{ $assignment->upt->name }}</span> <span class="badge {{ $assignment->verification_status==='active'?'text-bg-success':($assignment->verification_status==='pending'?'text-bg-warning':'text-bg-secondary') }}">{{ $verificationLabel }}</span><div class="d-flex flex-wrap gap-1 mt-1">@forelse($assignment->ruangLingkup as $scope)<span class="badge rounded-pill text-bg-light border">{{ $scope->name }}</span>@empty<span class="text-secondary">Ruang lingkup belum dicatat.</span>@endforelse</div>@if($assignment->verification_notes)<div class="text-secondary mt-1">Catatan UPT: {{ $assignment->verification_notes }}</div>@endif @if($assignment->verifiedBy)<div class="text-secondary mt-1">Diverifikasi {{ $assignment->verified_at?->format('d/m/Y H:i') }} oleh {{ $assignment->verifiedBy->name }}</div>@endif</div>
+    @empty<div class="small muted mt-1">Belum ada UPT yang ditugaskan.</div>@endforelse
+    </article>
+@empty<p class="muted mt-3">Belum ada riwayat kerja sama.</p>@endforelse
+</div></div></div>
+@endsection
